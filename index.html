@@ -1,10 +1,235 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bolt Dashboard</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOLT Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d1224;--panel:#151b33;--field:#0d1224;--line:#2a3359;--ink:#eaf0ff;--mute:#9aa6cf;--accent:#8a82ff;--on-accent:#0d1224;--spark:#ffc400;--bad:#ff7b7b;--ok:#5ee08a;color-scheme:dark}
+@media (prefers-color-scheme:light){:root{--bg:#edf0f7;--panel:#fff;--field:#f5f7fc;--line:#cfd6e8;--ink:#0f1530;--mute:#566086;--accent:#3a2cf0;--on-accent:#fff;--bad:#c62828;--ok:#16794a;color-scheme:light}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Figtree,system-ui,sans-serif}
+h1,h2,h3{font-family:'Bricolage Grotesque',Figtree,sans-serif;line-height:1.15;margin:0}
+button,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.center{min-height:100vh;display:grid;place-items:center;padding:24px;text-align:center}
+.center h1{font-size:clamp(2.6rem,9vw,4.5rem);font-weight:800}
+.center p{color:var(--mute);max-width:34ch;margin:12px auto 28px}
+.bolt{color:var(--spark)}
+.btn{background:var(--accent);color:var(--on-accent);border:0;border-radius:10px;padding:12px 20px;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:default}
+.shell{display:grid;grid-template-columns:88px 1fr;min-height:100vh}
+.rail{background:var(--panel);border-right:1px solid var(--line);padding:16px 18px;display:flex;flex-direction:column;gap:12px;align-items:center}
+.rail .logo{font-size:1.7rem;line-height:1}
+.srv{width:52px;height:52px;flex:none;border:0;padding:0;border-radius:50%;background:var(--field);color:var(--ink);font-weight:600;cursor:pointer;overflow:hidden;transition:border-radius .18s,outline-color .18s;outline:2px solid transparent;outline-offset:3px}
+.srv:hover{border-radius:16px}
+.srv[aria-current=true]{border-radius:16px;outline-color:var(--accent)}
+.srv img{width:100%;height:100%;object-fit:cover;display:block}
+.out{margin-top:auto}
+main{padding:28px clamp(16px,4vw,48px) 120px;max-width:760px;width:100%}
+main h2{font-size:clamp(1.8rem,5vw,2.6rem);font-weight:800}
+.sub{color:var(--mute);margin:4px 0 0}
+section{border-top:1px solid var(--line);margin-top:32px;padding-top:24px}
+section h3{font-size:1.35rem}
+.field{margin-top:18px;display:grid;gap:6px}
+.field>label,.field>span{font-weight:600}
+.hint{color:var(--mute);font-size:.9rem}
+select,textarea{width:100%;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+textarea{min-height:130px;resize:vertical}
+.row{display:flex;gap:10px;align-items:center}
+.roles{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer;background:var(--field)}
+.chip:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.preview{border-left:4px solid var(--accent);background:var(--panel);border-radius:6px;padding:12px 14px;white-space:pre-wrap;word-break:break-word}
+.preview b{display:block;margin-bottom:6px}
+.bar{position:fixed;left:88px;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:12px clamp(16px,4vw,48px);display:flex;gap:12px;align-items:center;justify-content:space-between;transform:translateY(110%);transition:transform .2s}
+.bar.show{transform:none}
+.bar p{margin:0}
+.msg{margin-top:16px;padding:10px 14px;border-radius:10px;border:1px solid var(--line)}
+.msg.bad{color:var(--bad);border-color:var(--bad)}
+.msg.ok{color:var(--ok);border-color:var(--ok)}
+@media (max-width:720px){
+.shell{grid-template-columns:1fr}
+.rail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:12px 16px}
+.out{margin:0 0 0 auto}
+.bar{left:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
 </head>
 <body>
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://mygdspsqdrwqmqxearyj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_yNvT07pWq2oCtyCLCam6og_Yl2iRrfw';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { flowType: 'pkce' } });
+const app = document.getElementById('app');
+const state = { guilds: [], gid: null, draft: null, saved: '', msg: null };
+
+// Builds elements safely: text is always set as text, never as HTML
+function el(tag, props, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === 'class') node.className = v;
+    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+    else if (v === true) node.setAttribute(k, '');
+    else if (v !== false && v != null) node.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid != null && kid !== false) node.append(kid.nodeType ? kid : document.createTextNode(kid));
+  }
+  return node;
+}
+const safeIcon = (u) => (typeof u === 'string' && u.startsWith('https://cdn.discordapp.com/')) ? u : null;
+const guild = () => state.guilds.find((g) => g.guild_id === state.gid);
+const snap = () => JSON.stringify(state.draft, (k, v) => (v instanceof Set ? [...v].sort() : v));
+const dirty = () => state.draft && snap() !== state.saved;
+
+function renderLogin(error) {
+  app.replaceChildren(el('div', { class: 'center' }, el('div', {},
+    el('h1', {}, 'BOLT ', el('span', { class: 'bolt' }, '⚡')),
+    el('p', {}, 'Log in with Discord to manage the servers where you are an admin.'),
+    el('button', { class: 'btn', onclick: login }, 'Log in with Discord'),
+    error ? el('p', { style: 'color:var(--bad)' }, error) : null)));
+}
+
+async function login() {
+  const { error } = await sb.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo: location.origin + location.pathname } });
+  if (error) renderLogin('Login failed: ' + error.message);
+}
+
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (location.search.includes('code=')) history.replaceState({}, '', location.pathname);
+  if (!session) return renderLogin();
+  const { data, error } = await sb.from('guild_meta').select('guild_id,name,icon,channels,roles').order('name');
+  if (error) return renderLogin('Could not load your servers: ' + error.message);
+  state.guilds = data;
+  if (data.length) await pick(data[0].guild_id); else render();
+}
+
+async function pick(gid) {
+  if (dirty() && !confirm('You have unsaved changes. Leave without saving?')) return;
+  state.gid = gid; state.msg = null;
+  const { data, error } = await sb.from('guild_settings').select('settings').eq('guild_id', gid).maybeSingle();
+  if (error) state.msg = { bad: true, text: 'Could not load settings: ' + error.message };
+  const s = (data && data.settings) || {};
+  const i = s.intro || {}, t = s.tickets || {};
+  state.draft = {
+    introOn: !!i.channelId, introChannel: i.channelId || '', template: i.template || '',
+    category: t.categoryId || '', panel: t.panelChannelId || '', log: t.logChannelId || '',
+    staff: new Set(t.staffRoleIds || []),
+  };
+  state.saved = snap();
+  render();
+}
+
+function channelSelect(g, type, value, onchange, placeholder) {
+  const sel = el('select', { onchange: (e) => { onchange(e.target.value); refresh(); } }, el('option', { value: '' }, placeholder));
+  const list = g.channels.filter((c) => c.type === type).sort((a, b) => a.position - b.position);
+  for (const c of list) {
+    const parent = g.channels.find((p) => p.id === c.parentId);
+    const label = (type === 'text' ? '#' : '') + c.name + (parent && type === 'text' ? '  (' + parent.name + ')' : '');
+    sel.append(el('option', { value: c.id, selected: c.id === value }, label));
+  }
+  return sel;
+}
+
+function render() {
+  const g = guild();
+  const rail = el('nav', { class: 'rail', 'aria-label': 'Servers' }, el('div', { class: 'logo bolt', 'aria-hidden': 'true' }, '⚡'));
+  for (const s of state.guilds) {
+    const icon = safeIcon(s.icon);
+    rail.append(el('button', { class: 'srv', title: s.name, 'aria-label': s.name, 'aria-current': String(s.guild_id === state.gid), onclick: () => pick(s.guild_id) },
+      icon ? el('img', { src: icon, alt: '' }) : s.name.slice(0, 2).toUpperCase()));
+  }
+  rail.append(el('button', { class: 'btn ghost out', onclick: () => sb.auth.signOut().then(() => location.reload()) }, 'Log out'));
+
+  const main = el('main', {});
+  if (!g) {
+    main.append(el('h2', {}, 'No servers yet'),
+      el('p', { class: 'sub' }, 'BOLT must be in a server where you are the owner, an admin, or have Manage Server. New permissions can take up to 5 minutes to show up here.'));
+  } else {
+    main.append(el('h2', {}, g.name), el('p', { class: 'sub' }, 'Changes reach BOLT within about 20 seconds after you save.'));
+    if (state.msg) main.append(el('div', { class: 'msg ' + (state.msg.bad ? 'bad' : 'ok'), role: 'status' }, state.msg.text));
+    main.append(introSection(g), ticketSection(g), el('p', { class: 'hint', style: 'margin-top:32px' }, 'Channel and role lists update every 5 minutes.'));
+  }
+  const bar = el('div', { class: 'bar', id: 'bar', role: 'region', 'aria-label': 'Unsaved changes' },
+    el('p', {}, 'You have unsaved changes.'),
+    el('div', { class: 'row' },
+      el('button', { class: 'btn ghost', onclick: () => pick(state.gid).then(() => {}) , id: 'reset' }, 'Reset'),
+      el('button', { class: 'btn', id: 'save', onclick: save }, 'Save changes')));
+  app.replaceChildren(el('div', { class: 'shell' }, rail, main), bar);
+  refresh();
+}
+
+function refresh() {
+  const bar = document.getElementById('bar');
+  if (bar) bar.classList.toggle('show', !!dirty());
+  const pv = document.getElementById('pv');
+  if (pv) pv.lastChild.textContent = state.draft.template || 'Your template will show here.';
+}
+
+function introSection(g) {
+  const d = state.draft;
+  return el('section', {},
+    el('h3', {}, 'Intro channel'),
+    el('p', { class: 'sub' }, 'BOLT keeps a how-to message as the last message in your intro channel.'),
+    el('div', { class: 'field' }, el('label', { class: 'chip', style: 'width:fit-content' },
+      el('input', { type: 'checkbox', checked: d.introOn, onchange: (e) => { d.introOn = e.target.checked; refresh(); } }), 'Turn on the intro system')),
+    el('div', { class: 'field' }, el('label', {}, 'Intro channel'), channelSelect(g, 'text', d.introChannel, (v) => (d.introChannel = v), 'Choose a channel')),
+    el('div', { class: 'field' }, el('label', { for: 'tpl' }, 'Template'),
+      el('textarea', { id: 'tpl', maxlength: '1500', placeholder: 'Name:\nAge:\nHobbies:', oninput: (e) => { d.template = e.target.value; refresh(); } }, d.template),
+      el('span', { class: 'hint' }, 'Members will see it like this:')),
+    el('div', { class: 'preview', id: 'pv' }, el('b', {}, '📝 How to write your intro'), d.template || 'Your template will show here.'));
+}
+
+function ticketSection(g) {
+  const d = state.draft;
+  const roles = el('div', { class: 'roles' });
+  for (const r of [...g.roles].sort((a, b) => b.position - a.position)) {
+    roles.append(el('label', { class: 'chip' },
+      el('input', { type: 'checkbox', checked: d.staff.has(r.id), onchange: (e) => { e.target.checked ? d.staff.add(r.id) : d.staff.delete(r.id); refresh(); } }),
+      el('span', { class: 'dot', style: 'background:' + (/^#[0-9a-f]{6}$/i.test(r.color) && r.color !== '#000000' ? r.color : 'var(--mute)') }), r.name));
+  }
+  return el('section', {},
+    el('h3', {}, 'Tickets'),
+    el('p', { class: 'sub' }, 'After saving, run /ticket setup in Discord and press Create panel to post the ticket button.'),
+    el('div', { class: 'field' }, el('label', {}, 'Category for new tickets'), channelSelect(g, 'category', d.category, (v) => (d.category = v), 'Choose a category')),
+    el('div', { class: 'field' }, el('label', {}, 'Panel channel'), channelSelect(g, 'text', d.panel, (v) => (d.panel = v), 'Choose a channel')),
+    el('div', { class: 'field' }, el('label', {}, 'Logs channel'), channelSelect(g, 'text', d.log, (v) => (d.log = v), 'No logs')),
+    el('div', { class: 'field' }, el('span', {}, 'Staff roles (up to 10)'), roles));
+}
+
+async function save() {
+  const d = state.draft;
+  const fail = (text) => { state.msg = { bad: true, text }; render(); window.scrollTo(0, 0); };
+  if (d.introOn && (!d.introChannel || !d.template.trim())) return fail('To turn on the intro system, choose a channel and write a template.');
+  if (d.staff.size > 10) return fail('Choose at most 10 staff roles.');
+  const btn = document.getElementById('save'); btn.disabled = true; btn.textContent = 'Saving…';
+
+  const { data: cur } = await sb.from('guild_settings').select('settings').eq('guild_id', state.gid).maybeSingle();
+  const settings = {
+    ...((cur && cur.settings) || {}),
+    intro: d.introOn ? { channelId: d.introChannel, template: d.template.trim() } : { channelId: null, template: null },
+    tickets: { categoryId: d.category || null, panelChannelId: d.panel || null, logChannelId: d.log || null, staffRoleIds: [...d.staff] },
+  };
+  const { error } = await sb.from('guild_settings').upsert({ guild_id: state.gid, settings }, { onConflict: 'guild_id' });
+  if (error) return fail('Could not save: ' + error.message);
+  state.saved = snap();
+  state.msg = { text: 'Saved. BOLT will apply this within about 20 seconds.' };
+  render(); window.scrollTo(0, 0);
+}
+
+boot();
+</script>
 </body>
 </html>
