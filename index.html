@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOLT — Discord bot</title>
+<meta name="description" content="BOLT handles tickets, intro channels, AFK and moderation from Discord and the web.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13 2 4 14h6l-1 8 9-12h-6z' fill='%23888'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#000;--text:#fff;--muted:#a3a3a3;--line:#262626;--line2:#404040;--s1:#0a0a0a;--s2:#111;--hover:#1a1a1a;--pbg:#fff;--ptx:#000;color-scheme:dark}
+[data-theme=light]{--bg:#fff;--text:#000;--muted:#525252;--line:#e5e5e5;--line2:#d4d4d4;--s1:#fafafa;--s2:#f5f5f5;--hover:#f0f0f0;--pbg:#000;--ptx:#fff;color-scheme:light}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--text);font:15px/1.6 Geist,system-ui,sans-serif}
+a{color:inherit}button,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--text);outline-offset:2px;border-radius:6px}
+main{flex:1;padding-top:84px}
+.page{width:min(1080px,calc(100% - 32px));margin:0 auto;padding:24px 0 56px}
+h1{font-size:clamp(26px,5vw,36px);line-height:1.15;letter-spacing:-.02em;margin:0 0 12px}h2{font-size:20px;margin:32px 0 12px}h3{font-size:15px;margin:0 0 6px}p{margin:0 0 12px}
+.muted{color:var(--muted)}.sm{font-size:13px}
+code{font:13px 'Geist Mono',monospace;background:var(--s2);border:1px solid var(--line);border-radius:6px;padding:2px 6px;word-break:break-all}
+.skip{position:absolute;left:-9999px}.skip:focus{left:12px;top:12px;background:var(--bg);border:1px solid var(--line);padding:8px 12px;z-index:200}
+.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line2);border-radius:999px;padding:10px 16px;font-weight:500;font-size:14px;text-decoration:none;background:transparent;cursor:pointer}
+.btn.p{background:var(--pbg);color:var(--ptx);border-color:var(--pbg)}.btn.sm{padding:7px 12px;font-size:13px}.btn:disabled{opacity:.5;cursor:default}
+.card{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--s1)}.card p{color:var(--muted);font-size:14px;margin:0}
+/* island nav */
+.wrap{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(720px,calc(100% - 24px));z-index:100}
+.island{background:color-mix(in srgb,var(--s1) 88%,transparent);border:1px solid var(--line);border-radius:999px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:6px;transition:transform .18s,border-radius .18s}
+.island.sc{transform:scale(.98)}.island:hover,.island:focus-within{transform:none}
+.top{display:flex;align-items:center;gap:8px}
+.logo{display:flex;align-items:center;gap:8px;text-decoration:none;font-weight:700;padding:4px 8px}
+.mark{width:26px;height:26px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;background:var(--s2)}.mark svg{width:14px;height:14px}
+.links{position:relative;display:flex;gap:2px;margin:0 auto;background:var(--s2);border:1px solid var(--line);border-radius:999px;padding:3px}
+.links a{position:relative;z-index:1;text-decoration:none;font-size:13px;padding:7px 12px;border-radius:999px;color:var(--muted)}.links a[aria-current]{color:var(--text)}
+#hl{position:absolute;top:3px;bottom:3px;border-radius:999px;background:var(--bg);border:1px solid var(--line);transition:left .18s,width .18s}
+.acts{display:flex;align-items:center;gap:6px;margin-left:auto}
+.icon{width:34px;height:34px;border:1px solid var(--line);background:var(--s2);border-radius:50%;cursor:pointer;display:grid;place-items:center}
+.mbtn{display:none}
+.ubtn{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--s2);border-radius:999px;padding:3px 12px 3px 3px;cursor:pointer}
+.ava{width:26px;height:26px;border-radius:50%;object-fit:cover;background:var(--s2);border:1px solid var(--line);display:grid;place-items:center;font-size:11px;font-weight:600;flex:none}
+.uname{font-size:13px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.umenu{position:absolute;top:calc(100% + 8px);right:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:4px;min-width:150px}
+.umenu button{width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px}.umenu button:hover{background:var(--hover)}
+.mpanel{display:none;flex-direction:column;gap:4px;border-top:1px solid var(--line);margin-top:6px;padding:8px 4px 2px}
+.mpanel a{text-decoration:none;padding:10px;border-radius:8px}.mpanel a[aria-current]{background:var(--hover)}
+.island.open{border-radius:20px}.island.open .mpanel{display:flex}
+/* home */
+.hero{max-width:720px;padding:28px 0 8px}.lead{color:var(--muted);font-size:17px;max-width:560px}.row{display:flex;gap:10px;flex-wrap:wrap}
+.grid{display:grid;gap:12px;grid-template-columns:1fr}
+.msg{display:flex;gap:12px;border:1px solid var(--line);border-radius:12px;background:var(--s1);padding:16px}
+.mav{width:36px;height:36px;flex:none;border-radius:50%;background:var(--s2);border:1px solid var(--line);display:grid;place-items:center;font-weight:700}
+.mname{font-weight:600;font-size:14px}.tag{font-size:10px;border:1px solid var(--line);border-radius:4px;padding:1px 4px;color:var(--muted);margin-left:6px}
+.embed{display:flex;border:1px solid var(--line);border-radius:8px;background:var(--s2);overflow:hidden;margin-top:10px;max-width:520px}
+.embed i{width:4px;background:var(--line2);flex:none}.embed div{padding:12px 14px;min-width:0}
+.et{font-weight:600;font-size:14px;margin:0 0 6px}.ed{font-size:14px;color:var(--muted);margin:0;white-space:pre-wrap;word-break:break-word}.ef{font-size:12px;color:var(--muted);margin:10px 0 0}
+/* docs */
+.dl{display:grid;gap:20px}.dside{display:none}
+.dside nav{position:sticky;top:96px;display:flex;flex-direction:column;gap:2px}
+.dside a,.dnav a{text-decoration:none;padding:8px 10px;border-radius:8px;font-size:14px;color:var(--muted)}.dside a.on,.dnav a.on{background:var(--hover);color:var(--text)}
+select,textarea{width:100%;background:var(--s1);border:1px solid var(--line);border-radius:8px;padding:10px 12px}textarea{min-height:130px;resize:vertical}
+.cmd{border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0;background:var(--s1)}.cmd h3{font:600 14px 'Geist Mono',monospace}.cmd>p{color:var(--muted);font-size:14px}
+.cr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;background:var(--bg)}
+.cr span{font-size:12px;color:var(--muted);min-width:56px}.cr code{flex:1;background:none;border:0;padding:0}
+.cp{border:1px solid var(--line);background:var(--s2);border-radius:999px;padding:5px 10px;font-size:12px;cursor:pointer}
+.perm{font-size:13px;color:var(--muted);margin:0}.perm b{color:var(--text);font-weight:600}
+.note{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--s1);font-size:14px;color:var(--muted)}
+/* dashboard */
+.center{max-width:460px;margin:40px auto;text-align:center;padding:28px}.center h1{font-size:22px}
+.srv{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--s1)}
+.srv .ava{width:44px;height:44px;font-size:14px}.srv>div{flex:1;min-width:0}.srv strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.srv.add{border-style:dashed}
+.dash{display:grid;gap:20px}
+.side{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--s1);height:fit-content}
+.dnav{display:flex;gap:4px;margin-top:10px;overflow-x:auto}
+.cont{min-width:0}.stats{display:grid;gap:12px;grid-template-columns:repeat(3,1fr)}.stat strong{display:block;font-size:20px}.stat span{font-size:13px;color:var(--muted)}
+.field{margin:16px 0}.field>label,.field>span{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
+.tg{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--s1);cursor:pointer}.tg input{width:18px;height:18px;accent-color:var(--text)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}.chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:7px 11px;background:var(--bg);cursor:pointer;font-size:13px}
+.chip[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:var(--text)}.dot{width:10px;height:10px;border-radius:50%;flex:none;border:1px solid var(--line2)}
+.bar{position:sticky;bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line2);border-radius:12px;background:var(--bg);padding:12px 14px;margin-top:24px}
+.err{border:1px solid var(--line2);border-radius:8px;padding:10px 12px;font-size:13px;background:var(--s1);margin:12px 0}
+.empty{border:1px dashed var(--line2);border-radius:12px;padding:24px;text-align:center;color:var(--muted)}
+footer{border-top:1px solid var(--line)}.fi{width:min(1080px,calc(100% - 32px));margin:0 auto;padding:18px 0;display:flex;justify-content:space-between;gap:6px;font-size:13px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:var(--bg);border-radius:999px;padding:10px 16px;font-size:13px;z-index:200;max-width:calc(100% - 32px);text-align:center}
+@media(max-width:720px){.links,.acts #auth{display:none}.mbtn{display:grid}.fi{flex-direction:column}.stats{grid-template-columns:1fr}}
+@media(min-width:640px){.grid{grid-template-columns:1fr 1fr}}
+@media(min-width:860px){.grid.g3{grid-template-columns:repeat(3,1fr)}.dl{grid-template-columns:210px 1fr}.dside{display:block}.dmob{display:none}.dash{grid-template-columns:240px 1fr}.dnav{flex-direction:column;overflow:visible}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<a class="skip" href="#app">Skip to content</a>
+<header class="wrap">
+<nav class="island" id="island" aria-label="Main">
+<div class="top">
+<a href="#/" class="logo" aria-label="BOLT home"><span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></span>BOLT</a>
+<div class="links" id="links"><i id="hl" aria-hidden="true"></i><a data-n="home" href="#/">Home</a><a data-n="docs" href="#/docs">Docs</a><a data-n="dashboard" href="#/dashboard">Dashboard</a></div>
+<div class="acts"><button id="theme" class="icon" type="button"></button><span id="auth"></span><button id="mbtn" class="icon mbtn" type="button" aria-expanded="false" aria-label="Open menu">☰</button></div>
+</div>
+<div class="mpanel" id="mpanel"></div>
+</nav>
+<div id="umenu" class="umenu" hidden><button id="out" type="button">Log out</button></div>
+</header>
+<main id="app"></main>
+<footer><div class="fi"><span>© BOLT. 2026</span><span>Made with love by DevBolt</span></div></footer>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const INVITE_URL = 'https://discord.com/oauth2/authorize?client_id=1568822676213211207&permissions=8&integration_type=0&scope=bot+applications.commands';
+const SUPABASE_URL = 'https://mygdspsqdrwqmqxearyj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_yNvT07pWq2oCtyCLCam6og_Yl2iRrfw';
+
+/* ---------- Data layer: the only place that talks to Supabase ---------- */
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { flowType: 'pkce' } });
+const Data = {
+  async user() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return null;
+    const m = session.user.user_metadata || {};
+    return { name: m.full_name || m.name || 'You', avatar: m.avatar_url };
+  },
+  async login() {
+    try { sessionStorage.setItem('bolt-return', location.hash || '#/dashboard'); } catch (e) {}
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo: location.origin + location.pathname } });
+    if (error) throw error;
+  },
+  async logout() { await sb.auth.signOut(); this._g = null; },
+  async guilds() {
+    if (this._g && Date.now() - this._t < 30000) return this._g;
+    const { data, error } = await sb.from('guild_meta').select('guild_id,name,icon,channels,roles,updated_at').order('name');
+    if (error) throw error;
+    this._g = data; this._t = Date.now();
+    return data;
+  },
+  async load(id) {
+    const { data, error } = await sb.from('guild_settings').select('settings').eq('guild_id', id).maybeSingle();
+    if (error) throw error;
+    const s = (data && data.settings) || {}, i = s.intro || {}, t = s.tickets || {};
+    return {
+      intro: { enabled: !!i.channelId, channelId: i.channelId || '', template: i.template || '' },
+      tickets: { categoryId: t.categoryId || '', panelChannelId: t.panelChannelId || '', logChannelId: t.logChannelId || '', staffRoleIds: Array.isArray(t.staffRoleIds) ? t.staffRoleIds : [] }
+    };
+  },
+  async save(id, d) {
+    const { data: cur, error: e1 } = await sb.from('guild_settings').select('settings').eq('guild_id', id).maybeSingle();
+    if (e1) throw e1;
+    const on = d.intro.enabled && d.intro.channelId;
+    const settings = {
+      ...((cur && cur.settings) || {}),
+      intro: { channelId: on ? d.intro.channelId : null, template: on ? d.intro.template.trim() : null },
+      tickets: { categoryId: d.tickets.categoryId || null, panelChannelId: d.tickets.panelChannelId || null, logChannelId: d.tickets.logChannelId || null, staffRoleIds: d.tickets.staffRoleIds }
+    };
+    const { error } = await sb.from('guild_settings').upsert({ guild_id: id, settings }, { onConflict: 'guild_id' });
+    if (error) throw error;
+  }
+};
+
+/* ---------- Helpers ---------- */
+const $ = (id) => document.getElementById(id);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const okIcon = (u) => typeof u === 'string' && u.startsWith('https://cdn.discordapp.com/');
+const ini = (n) => n.split(' ').map((w) => w[0] || '').join('').slice(0, 2).toUpperCase();
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, '');
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+function ava(url, name) {
+  if (okIcon(url)) return h('img', { class: 'ava', src: url, alt: '' });
+  return h('span', { class: 'ava' }, ini(name || '?'));
+}
+let toastTimer;
+function toast(m) { const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 3000); }
+async function copy(txt) {
+  try { await navigator.clipboard.writeText(txt); toast('Copied'); } catch (e) { toast('Could not copy. Select the text instead.'); }
+}
+function ago(iso) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 1) return 'just now';
+  if (m < 60) return m + ' min ago';
+  return Math.round(m / 60) + ' h ago';
+}
+const loginBtn = (cls) => h('button', { class: cls || 'btn p', type: 'button', onclick: doLogin }, 'Log in with Discord');
+async function doLogin() { try { await Data.login(); } catch (e) { toast('Login failed: ' + e.message); } }
+async function doLogout() { await Data.logout(); $('umenu').hidden = true; await render(); toast('Logged out'); }
+
+/* ---------- Theme ---------- */
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  $('theme').textContent = t === 'dark' ? '☀' : '☾';
+  $('theme').setAttribute('aria-label', t === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  try { localStorage.setItem('bolt-theme', t); } catch (e) {}
+}
+function initTheme() {
+  let s = null; try { s = localStorage.getItem('bolt-theme'); } catch (e) {}
+  setTheme(s === 'light' || s === 'dark' ? s : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+}
+
+/* ---------- Docs content ---------- */
+const DOCS = [
+  { id: 'getting-started', t: 'Getting started', b: ['Add BOLT with the invite button, then run /ticket setup or /intro setup, or use the dashboard.', 'Prefix commands start with "bolt." Notation: <required> [optional].'] },
+  { id: 'moderation', t: 'Moderation', b: ['Prefix commands.'], c: [
+    ['bolt.kick', 'Removes a member.', 'bolt.kick <@user> [reason]', 'bolt.kick @user spamming', 'Kick Members'],
+    ['bolt.ban', 'Bans a member. Also works for users who already left.', 'bolt.ban <@user or ID> [reason]', 'bolt.ban @user repeated rule breaks', 'Ban Members'],
+    ['bolt.mute', 'Times out a member. Time examples: 30s, 10m, 2h, 1d. Maximum 28d.', 'bolt.mute <@user> <time> [reason]', 'bolt.mute @user 10m spamming', 'Moderate Members'],
+    ['bolt.unmute', 'Removes a timeout.', 'bolt.unmute <@user>', 'bolt.unmute @user', 'Moderate Members'],
+    ['bolt.purge', "Deletes the latest messages in the channel, or only one person's messages. Skips pinned messages and messages older than 14 days. bolt.clear works too.", 'bolt.purge <1-100> [@user]', 'bolt.purge 20 @user', 'Manage Messages'],
+    ['bolt.help', 'Shows all commands.', 'bolt.help', 'bolt.help', 'None']
+  ], n: ["You cannot act on someone whose top role is the same as or higher than yours, or on the server owner. BOLT's role must be above the member's role. Wrong usage shows the correct format."] },
+  { id: 'afk', t: 'AFK', c: [
+    ['?afk', 'Marks you as AFK and adds [AFK] to your nickname. Anyone who mentions you gets a card with your reason and how long you have been away. Your next message removes it.', '?afk [reason]', '?afk in a meeting', 'None'],
+    ['?afk remove', "Removes someone else's AFK.", '?afk remove <@user or name>', '?afk remove @user', 'Manage Server']
+  ], n: ["Discord does not let bots change the server owner's nickname."] },
+  { id: 'intro', t: 'Intro channel', b: ['Slash command.'], c: [
+    ['/intro setup', 'Pick a channel and write a template. BOLT keeps the how-to message as the last message in that channel and moves it below every new intro. Can also be set in the dashboard.', '/intro setup', '/intro setup', 'Manage Server']
+  ] },
+  { id: 'tickets', t: 'Tickets', b: ['Slash commands.'], c: [
+    ['/ticket setup', 'Choose the ticket category, the panel channel and the staff roles, then press Create panel.', '/ticket setup', '/ticket setup', 'Manage Server'],
+    ['/ticket logs', 'Choose the channel for ticket logs.', '/ticket logs', '/ticket logs', 'Manage Server']
+  ], n: ['How tickets work: members press Open Ticket and fill in a reason. BOLT creates a private channel for that member and the staff roles. One open ticket per member. Buttons inside a ticket: Close (member or staff), Rename (staff), Reopen (staff), Delete (staff). When a ticket is closed the member loses access and staff keep it. Created, closed, reopened, renamed and deleted tickets are written to the logs channel.'] },
+  { id: 'other', t: 'Other', c: [['/ping', 'Shows if BOLT is online and its latency.', '/ping', '/ping', 'None']] },
+  { id: 'dashboard', t: 'Dashboard', b: ['Log in with Discord, choose a server, then change the Intro and Ticket settings. Changes reach BOLT in about 20 seconds. Only the owner, admins and members with Manage Server can use it.'] }
+];
+
+/* ---------- Pages (each returns an element) ---------- */
+function pageHome() {
+  const features = [['Tickets', 'Members open a private ticket. Staff reply in one place.'], ['Intro channel', 'New members follow a how-to message that stays at the bottom.'], ['AFK', 'Mark yourself away. Mentions get your reason and how long.'], ['Moderation', 'Kick, ban, mute and purge with clear formats.'], ['Web dashboard', 'Change intro and ticket settings from your browser.']];
+  return h('div', { class: 'page' },
+    h('section', { class: 'hero' }, h('h1', {}, 'A quiet bot for Discord servers.'),
+      h('p', { class: 'lead' }, 'BOLT handles tickets, intro channels, AFK and moderation from Discord and the web.'),
+      h('div', { class: 'row' }, h('a', { class: 'btn p', href: INVITE_URL, target: '_blank', rel: 'noopener noreferrer' }, 'Add to Discord'), h('a', { class: 'btn', href: '#/dashboard' }, 'Open dashboard'))),
+    h('h2', {}, 'What BOLT does'),
+    h('div', { class: 'grid g3' }, features.map((f) => h('div', { class: 'card' }, h('h3', {}, f[0]), h('p', {}, f[1])))),
+    h('h2', {}, 'Preview'),
+    h('div', { class: 'msg' }, h('div', { class: 'mav' }, 'B'), h('div', { style: 'flex:1;min-width:0' },
+      h('div', {}, h('span', { class: 'mname' }, 'BOLT'), h('span', { class: 'tag' }, 'BOT')),
+      embed('📝 How to write your intro', 'Copy this format and fill it in:\n\nName:\nAge:\nHobbies:', 'Post your intro below this message.'),
+      embed('Support Tickets', 'Need help? Click the button below to open a ticket.\nA private channel will be created for you and our staff.', null, 'Open Ticket'))));
+}
+function embed(title, desc, foot, btn) {
+  return h('div', {}, h('div', { class: 'embed' }, h('i'), h('div', {}, h('p', { class: 'et' }, title), h('p', { class: 'ed' }, desc), foot && h('p', { class: 'ef' }, foot))),
+    btn && h('p', { style: 'margin:8px 0 0' }, h('span', { class: 'btn p sm' }, btn)));
+}
+
+function cmdBlock(c) {
+  const row = (label, txt) => h('div', { class: 'cr' }, h('span', {}, label), h('code', {}, txt), h('button', { class: 'cp', type: 'button', onclick: () => copy(txt) }, 'Copy'));
+  return h('article', { class: 'cmd' }, h('h3', {}, c[0]), h('p', {}, c[1]), row('Format', c[2]), row('Example', c[3]), h('p', { class: 'perm' }, 'Permission needed: ', h('b', {}, c[4])));
+}
+function pageDocs(active) {
+  const cur = active || 'getting-started';
+  const sel = h('select', { id: 'dsel', onchange: (e) => (location.hash = '#/docs/' + e.target.value) }, DOCS.map((s) => h('option', { value: s.id, selected: s.id === cur }, s.t)));
+  const page = h('div', { class: 'page' }, h('h1', {}, 'Docs'), h('p', { class: 'muted' }, 'Commands, formats and permissions. Copy a format and paste it into Discord.'),
+    h('div', { class: 'dl' },
+      h('aside', { class: 'dside' }, h('nav', { 'aria-label': 'Docs sections' }, DOCS.map((s) => h('a', { href: '#/docs/' + s.id, class: s.id === cur ? 'on' : '' }, s.t)))),
+      h('div', {}, h('div', { class: 'dmob field' }, h('label', { for: 'dsel' }, 'Section'), sel),
+        DOCS.map((s) => h('section', { id: 'docs-' + s.id }, h('h2', {}, s.t), (s.b || []).map((p) => h('p', {}, p)), (s.c || []).map(cmdBlock), (s.n || []).map((n) => h('p', { class: 'note' }, n)))))));
+  if (active) setTimeout(() => { const t = $('docs-' + active); if (t) t.scrollIntoView({ block: 'start' }); }, 50);
+  return page;
+}
+
+const S = { g: null, guilds: [], orig: null, draft: null, sec: 'overview' };
+async function pageDash(gid, sec) {
+  const user = await Data.user();
+  if (!user) return h('div', { class: 'page' }, h('div', { class: 'card center' }, h('h1', {}, 'Log in to manage your servers'), h('p', { class: 'muted' }, 'Connect with Discord to choose a server and change its Intro and Ticket settings.'), loginBtn()));
+  let guilds;
+  try { guilds = await Data.guilds(); } catch (e) { return h('div', { class: 'page' }, h('p', { class: 'err' }, 'Could not load your servers: ' + e.message)); }
+  const addBtn = (cls) => h('a', { class: cls, href: INVITE_URL, target: '_blank', rel: 'noopener noreferrer' }, 'Add BOLT to a server');
+  if (!gid) {
+    return h('div', { class: 'page' }, h('h1', {}, 'Choose a server'), h('p', { class: 'muted' }, 'Only servers where you are the owner, an admin, or have Manage Server are listed.'),
+      guilds.length ? h('div', { class: 'grid g3' }, guilds.map((g) => h('div', { class: 'srv' }, ava(g.icon, g.name), h('div', {}, h('strong', {}, g.name), h('span', { class: 'sm muted' }, g.channels.length + ' channels, ' + g.roles.length + ' roles')), h('a', { class: 'btn sm', href: '#/dashboard/' + g.guild_id + '/overview' }, 'Manage'))), h('div', { class: 'srv add' }, h('div', {}, h('strong', {}, 'Add BOLT to a server'), h('span', { class: 'sm muted' }, 'Then reload this page.')), addBtn('btn p sm')))
+        : h('div', { class: 'empty' }, h('p', {}, 'No servers found. BOLT must be in a server where you are the owner, an admin, or have Manage Server. New permissions can take up to 5 minutes to show up.'), addBtn('btn p')));
+  }
+  const g = guilds.find((x) => x.guild_id === gid);
+  if (!g) return h('div', { class: 'page' }, h('div', { class: 'empty' }, 'Server not found.'), h('p', { style: 'margin-top:12px' }, h('a', { class: 'btn', href: '#/dashboard' }, 'Back to servers')));
+  let settings;
+  try { settings = await Data.load(gid); } catch (e) { return h('div', { class: 'page' }, h('p', { class: 'err' }, 'Could not load settings: ' + e.message)); }
+  S.g = g; S.guilds = guilds; S.sec = sec || 'overview';
+  if (S.id !== gid) { S.id = gid; S.orig = settings; S.draft = clone(settings); }
+  return dashServer(g, S.sec, addBtn);
+}
+
+function dashServer(g, sec, addBtn) {
+  const sw = h('select', { 'aria-label': 'Server', onchange: (e) => (location.hash = '#/dashboard/' + e.target.value + '/' + sec) }, S.guilds.map((x) => h('option', { value: x.guild_id, selected: x.guild_id === g.guild_id }, x.name)));
+  const nav = [['overview', 'Overview'], ['intro', 'Intro'], ['tickets', 'Tickets']].map((n) => h('a', { href: '#/dashboard/' + g.guild_id + '/' + n[0], class: sec === n[0] ? 'on' : '' }, n[1]));
+  const side = h('aside', { class: 'side' }, sw, h('nav', { class: 'dnav', 'aria-label': 'Server sections' }, nav), h('p', { style: 'margin:12px 0 0' }, addBtn('btn sm')));
+  const body = sec === 'intro' ? formIntro(g) : sec === 'tickets' ? formTickets(g) : overview(g);
+  return h('div', { class: 'page' }, h('div', { class: 'dash' }, side, h('div', { class: 'cont' }, body)));
+}
+function overview(g) {
+  const stat = (v, l) => h('div', { class: 'card stat' }, h('strong', {}, v), h('span', {}, l));
+  const quick = (t, d, s) => h('div', { class: 'card' }, h('h3', {}, t), h('p', {}, d), h('a', { class: 'btn sm', style: 'margin-top:10px', href: '#/dashboard/' + g.guild_id + '/' + s }, 'Open ' + t));
+  return h('div', {}, h('h1', {}, g.name), h('div', { class: 'stats' }, stat(String(g.channels.length), 'Channels'), stat(String(g.roles.length), 'Roles'), stat(ago(g.updated_at), 'Server data synced')),
+    h('div', { class: 'grid', style: 'margin-top:12px' }, quick('Intro', 'Set the intro channel and template.', 'intro'), quick('Tickets', 'Set the ticket category, panel and staff roles.', 'tickets')),
+    h('p', { class: 'sm muted', style: 'margin-top:14px' }, 'Changes reach BOLT in about 20 seconds. Channel and role lists update every 5 minutes.'));
+}
+function chSelect(g, type, value, onpick, first) {
+  const list = g.channels.filter((c) => c.type === type).sort((a, b) => a.position - b.position);
+  return h('select', { onchange: (e) => { onpick(e.target.value); dirtyCheck(); } }, h('option', { value: '' }, first),
+    list.map((c) => h('option', { value: c.id, selected: c.id === value }, (type === 'text' ? '#' : '') + c.name)));
+}
+function field(label, ctrl, id) { return h('div', { class: 'field' }, h('label', id ? { for: id } : {}, label), ctrl); }
+function formIntro(g) {
+  const d = S.draft.intro;
+  const prev = h('p', { class: 'ed', id: 'pv' }, 'Copy this format and fill it in:\n\n' + (d.template || 'Your template shows here.'));
+  const ta = h('textarea', { id: 'tpl', maxlength: '1500', placeholder: 'Name:\nAge:\nHobbies:', oninput: (e) => { d.template = e.target.value; prev.textContent = 'Copy this format and fill it in:\n\n' + (d.template || 'Your template shows here.'); dirtyCheck(); } });
+  ta.value = d.template;
+  return h('div', {}, h('h1', {}, 'Intro'), h('p', { class: 'muted' }, 'BOLT keeps a how-to message as the last message in your intro channel.'),
+    h('label', { class: 'tg' }, h('input', { type: 'checkbox', checked: d.enabled, onchange: (e) => { d.enabled = e.target.checked; dirtyCheck(); } }), 'Turn on the intro system'),
+    field('Channel', chSelect(g, 'text', d.channelId, (v) => (d.channelId = v), 'Choose a channel')),
+    field('Template', ta, 'tpl'),
+    h('p', { class: 'sm muted' }, 'Members will see it like this:'),
+    h('div', { class: 'embed', style: 'max-width:none' }, h('i'), h('div', {}, h('p', { class: 'et' }, '📝 How to write your intro'), prev, h('p', { class: 'ef' }, 'Post your intro below this message.'))),
+    saveBar());
+}
+function formTickets(g) {
+  const d = S.draft.tickets;
+  const color = (c) => (/^#[0-9a-f]{6}$/i.test(c) && c !== '#000000' ? c : 'var(--muted)');
+  const chips = g.roles.slice().sort((a, b) => b.position - a.position).map((r) => {
+    const chip = h('button', { class: 'chip', type: 'button', 'aria-pressed': String(d.staffRoleIds.includes(r.id)) }, h('span', { class: 'dot', style: 'background:' + color(r.color) }), r.name);
+    chip.addEventListener('click', () => {
+      const i = d.staffRoleIds.indexOf(r.id);
+      if (i > -1) d.staffRoleIds.splice(i, 1);
+      else if (d.staffRoleIds.length >= 10) return toast('You can choose up to 10 staff roles.');
+      else d.staffRoleIds.push(r.id);
+      chip.setAttribute('aria-pressed', String(d.staffRoleIds.includes(r.id)));
+      dirtyCheck();
+    });
+    return chip;
+  });
+  return h('div', {}, h('h1', {}, 'Tickets'), h('p', { class: 'muted' }, 'Choose where tickets live and who can see them.'),
+    field('Category for new tickets', chSelect(g, 'category', d.categoryId, (v) => (d.categoryId = v), 'Choose a category')),
+    field('Panel channel', chSelect(g, 'text', d.panelChannelId, (v) => (d.panelChannelId = v), 'Choose a channel')),
+    field('Logs channel (optional)', chSelect(g, 'text', d.logChannelId, (v) => (d.logChannelId = v), 'No logs')),
+    h('div', { class: 'field' }, h('span', {}, 'Staff roles (up to 10)'), h('div', { class: 'chips' }, chips)),
+    h('p', { class: 'note' }, 'After saving, run /ticket setup in Discord and press Create panel to post the ticket button.'), saveBar());
+}
+function saveBar() {
+  return h('div', {}, h('p', { class: 'err', id: 'ferr', hidden: true, role: 'alert' }),
+    h('div', { class: 'bar', id: 'bar', hidden: true }, h('span', {}, 'You have unsaved changes.'),
+      h('div', { class: 'row' }, h('button', { class: 'btn sm', type: 'button', onclick: () => { S.draft = clone(S.orig); render(); } }, 'Reset'), h('button', { class: 'btn p sm', id: 'save', type: 'button', onclick: doSave }, 'Save changes'))));
+}
+function dirtyCheck() { const b = $('bar'); if (b) b.hidden = JSON.stringify(S.draft) === JSON.stringify(S.orig); }
+function formError(m) { const e = $('ferr'); if (!e) return; e.hidden = !m; e.textContent = m || ''; }
+async function doSave() {
+  const d = S.draft; formError('');
+  if (d.intro.enabled && !d.intro.channelId) return formError('Choose a channel for the intro system, or turn it off.');
+  if (d.intro.enabled && !d.intro.template.trim()) return formError('Write a template for the intro message.');
+  if (S.sec === 'tickets' && (!d.tickets.categoryId || !d.tickets.panelChannelId || !d.tickets.staffRoleIds.length)) return formError('Choose a ticket category, a panel channel and at least one staff role.');
+  const btn = $('save'); btn.disabled = true; btn.textContent = 'Saving…';
+  try { await Data.save(S.g.guild_id, d); S.orig = clone(d); dirtyCheck(); toast('Saved. BOLT applies changes within about 20 seconds.'); }
+  catch (e) { formError('Could not save: ' + e.message); }
+  btn.disabled = false; btn.textContent = 'Save changes';
+}
+
+/* ---------- Router + nav ---------- */
+let tok = 0;
+async function render() {
+  const t = ++tok, parts = (location.hash || '#/').slice(2).split('/').filter(Boolean), area = parts[0] === 'docs' ? 'docs' : parts[0] === 'dashboard' ? 'dashboard' : 'home';
+  $('island').classList.remove('open'); $('mbtn').setAttribute('aria-expanded', 'false'); $('umenu').hidden = true;
+  await renderNav(area);
+  const node = area === 'docs' ? pageDocs(parts[1]) : area === 'dashboard' ? await pageDash(parts[1], parts[2]) : pageHome();
+  if (t !== tok) return;
+  document.title = area === 'docs' ? 'Docs — BOLT' : area === 'dashboard' ? 'Dashboard — BOLT' : 'BOLT — Discord bot';
+  if (area !== 'dashboard') S.id = null;
+  $('app').replaceChildren(node);
+  if (!(area === 'docs' && parts[1])) scrollTo(0, 0);
+}
+async function renderNav(area) {
+  const u = await Data.user(), a = $('auth'), mp = $('mpanel');
+  document.querySelectorAll('#links a').forEach((l) => l.toggleAttribute('aria-current', l.dataset.n === area));
+  const on = document.querySelector('#links a[aria-current]');
+  if (on) { $('hl').style.left = on.offsetLeft + 'px'; $('hl').style.width = on.offsetWidth + 'px'; }
+  const links = [['home', '#/', 'Home'], ['docs', '#/docs', 'Docs'], ['dashboard', '#/dashboard', 'Dashboard']].map((l) => h('a', { href: l[1], 'aria-current': l[0] === area ? 'page' : null }, l[2]));
+  a.replaceChildren(u ? h('button', { class: 'ubtn', type: 'button', onclick: (e) => { e.stopPropagation(); $('umenu').hidden = !$('umenu').hidden; } }, ava(u.avatar, u.name), h('span', { class: 'uname' }, u.name)) : loginBtn('btn p sm'));
+  mp.replaceChildren(...links, u ? h('button', { class: 'btn', type: 'button', onclick: doLogout }, 'Log out') : loginBtn('btn p'));
+}
+
+/* ---------- Boot ---------- */
+initTheme();
+$('theme').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+$('out').addEventListener('click', doLogout);
+$('mbtn').addEventListener('click', (e) => { const o = $('island').classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', String(o)); });
+document.addEventListener('click', (e) => { if (!e.target.closest('.ubtn,#umenu')) $('umenu').hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('umenu').hidden = true; $('island').classList.remove('open'); } });
+addEventListener('scroll', () => $('island').classList.toggle('sc', scrollY > 8), { passive: true });
+addEventListener('hashchange', render);
+(async () => {
+  await sb.auth.getSession();
+  if (location.search.includes('code=')) history.replaceState(null, '', location.pathname + location.hash);
+  try { const r = sessionStorage.getItem('bolt-return'); if (r && await Data.user()) { sessionStorage.removeItem('bolt-return'); if (r !== location.hash) location.hash = r; } } catch (e) {}
+  render();
+})();
+</script>
+</body>
+</html>
