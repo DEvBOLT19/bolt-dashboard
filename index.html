@@ -133,13 +133,22 @@ const Data = {
     this._g = data; this._t = Date.now();
     return data;
   },
+  async points(id) {
+    const top = await sb.from('mod_points').select('user_id,name,points').eq('guild_id', id).gt('points', 0).order('points', { ascending: false }).limit(10);
+    const log = await sb.from('mod_point_log').select('user_name,voter_name,delta,total,reason,created_at').eq('guild_id', id).order('created_at', { ascending: false }).limit(8);
+    if (top.error) throw top.error;
+    if (log.error) throw log.error;
+    return { top: top.data, log: log.data };
+  },
   async load(id) {
     const { data, error } = await sb.from('guild_settings').select('settings').eq('guild_id', id).maybeSingle();
     if (error) throw error;
-    const s = (data && data.settings) || {}, i = s.intro || {}, t = s.tickets || {};
+    const s = (data && data.settings) || {}, i = s.intro || {}, t = s.tickets || {}, mp = s.modpoints || {}, mm = s.modmail || {};
     return {
       intro: { enabled: !!i.channelId, channelId: i.channelId || '', template: i.template || '' },
-      tickets: { categoryId: t.categoryId || '', panelChannelId: t.panelChannelId || '', logChannelId: t.logChannelId || '', staffRoleIds: Array.isArray(t.staffRoleIds) ? t.staffRoleIds : [] }
+      tickets: { panelChannelId: t.panelChannelId || '', logChannelId: t.logChannelId || '', transcriptChannelId: t.transcriptChannelId || '', staffRoleIds: Array.isArray(t.staffRoleIds) ? t.staffRoleIds : [] },
+      modpoints: { voterRoleIds: Array.isArray(mp.voterRoleIds) ? mp.voterRoleIds : [], kickAt: Number(mp.kickAt) || 0, banAt: Number(mp.banAt) || 0 },
+      modmail: { enabled: !!mm.channelId, channelId: mm.channelId || '', create: false, staffRoleIds: Array.isArray(mm.staffRoleIds) ? mm.staffRoleIds : [] }
     };
   },
   async save(id, d) {
@@ -149,7 +158,9 @@ const Data = {
     const settings = {
       ...((cur && cur.settings) || {}),
       intro: { channelId: on ? d.intro.channelId : null, template: on ? d.intro.template.trim() : null },
-      tickets: { categoryId: d.tickets.categoryId || null, panelChannelId: d.tickets.panelChannelId || null, logChannelId: d.tickets.logChannelId || null, staffRoleIds: d.tickets.staffRoleIds }
+      tickets: { categoryId: null, panelChannelId: d.tickets.panelChannelId || null, logChannelId: d.tickets.logChannelId || null, transcriptChannelId: d.tickets.transcriptChannelId || null, staffRoleIds: d.tickets.staffRoleIds },
+      modpoints: { voterRoleIds: d.modpoints.voterRoleIds, kickAt: d.modpoints.kickAt || 0, banAt: d.modpoints.banAt || 0 },
+      modmail: { channelId: d.modmail.enabled && d.modmail.channelId ? d.modmail.channelId : null, createChannel: !!(d.modmail.enabled && !d.modmail.channelId && d.modmail.create), staffRoleIds: d.modmail.staffRoleIds }
     };
     const { error } = await sb.from('guild_settings').upsert({ guild_id: id, settings }, { onConflict: 'guild_id' });
     if (error) throw error;
@@ -205,7 +216,7 @@ function initTheme() {
 
 /* ---------- Docs content ---------- */
 const DOCS = [
-  { id: 'getting-started', t: 'Getting started', b: ['Add BOLT with the invite button, then run /ticket setup or /intro setup, or use the dashboard.', 'Prefix commands start with "bolt." Notation: <required> [optional].'] },
+  { id: 'getting-started', t: 'Getting started', b: ['Add BOLT with the invite button, then run /ticket setup or /intro setup, or use the dashboard.', 'Commands start with "bolt." or "bolt " (both work), like bolt.kick @user or bolt kick @user. Notation: <required> [optional].'] },
   { id: 'moderation', t: 'Moderation', b: ['Prefix commands.'], c: [
     ['bolt.kick', 'Removes a member.', 'bolt.kick <@user> [reason]', 'bolt.kick @user spamming', 'Kick Members'],
     ['bolt.ban', 'Bans a member. Also works for users who already left.', 'bolt.ban <@user or ID> [reason]', 'bolt.ban @user repeated rule breaks', 'Ban Members'],
@@ -215,23 +226,28 @@ const DOCS = [
     ['bolt.help', 'Shows all commands.', 'bolt.help', 'bolt.help', 'None']
   ], n: ["You cannot act on someone whose top role is the same as or higher than yours, or on the server owner. BOLT's role must be above the member's role. Wrong usage shows the correct format."] },
   { id: 'afk', t: 'AFK', c: [
-    ['?afk', 'Marks you as AFK and adds [AFK] to your nickname. Anyone who mentions you gets a card with your reason and how long you have been away. Your next message removes it.', '?afk [reason]', '?afk in a meeting', 'None'],
-    ['?afk remove', "Removes someone else's AFK.", '?afk remove <@user or name>', '?afk remove @user', 'Manage Server']
-  ], n: ["Discord does not let bots change the server owner's nickname."] },
+    ['?afk', 'Marks you as AFK and adds [AFK] to your nickname. Anyone who mentions you gets a card with your reason and how long you have been away. Your next message removes it.', 'bolt afk [reason]', 'bolt afk in a meeting', 'None'],
+    ['?afk remove', "Removes someone else's AFK.", 'bolt afk remove <@user or name>', 'bolt afk remove @user', 'Manage Server']
+  ], n: ['?afk works too.', "Discord does not let bots change the server owner's nickname."] },
   { id: 'intro', t: 'Intro channel', b: ['Slash command.'], c: [
     ['/intro setup', 'Pick a channel and write a template. BOLT keeps the how-to message as the last message in that channel and moves it below every new intro. Can also be set in the dashboard.', '/intro setup', '/intro setup', 'Manage Server']
   ] },
   { id: 'tickets', t: 'Tickets', b: ['Slash commands.'], c: [
-    ['/ticket setup', 'Choose the ticket category, the panel channel and the staff roles, then press Create panel.', '/ticket setup', '/ticket setup', 'Manage Server'],
+    ['/ticket setup', 'Choose the panel channel, the staff roles, the logs channel and the transcripts channel, then press Create panel.', '/ticket setup', '/ticket setup', 'Manage Server'],
     ['/ticket logs', 'Choose the channel for ticket logs.', '/ticket logs', '/ticket logs', 'Manage Server']
-  ], n: ['How tickets work: members press Open Ticket and fill in a reason. BOLT creates a private channel for that member and the staff roles. One open ticket per member. Buttons inside a ticket: Close (member or staff), Rename (staff), Reopen (staff), Delete (staff). When a ticket is closed the member loses access and staff keep it. Created, closed, reopened, renamed and deleted tickets are written to the logs channel.'] },
+  ], n: ['How tickets work: members press Open Ticket and fill in a reason. BOLT creates a private thread in the panel channel for that member and mentions the staff roles. One open ticket per member. Buttons inside a ticket: Close (member or staff), Rename (staff), Reopen (staff), Delete (staff). When a ticket closes the member is removed from the thread, and a transcript (one line per message, like sender: content) is posted in the transcripts channel. If none is set, BOLT creates a private one. Created, closed, reopened, renamed and deleted tickets are written to the logs channel.'] },
+  { id: 'points', t: 'Mod points', b: ['Voter roles are chosen on the dashboard. Kick and ban limits are set there too. At a limit, BOLT acts automatically and sends the member the reason by DM.'], c: [
+    ['bolt.point', 'Gives or removes mod points. Voters only.', 'bolt.point <@user> <+number or -number> [reason]', 'bolt.point @user +2 spamming', 'Voter role'],
+    ['bolt.points', 'Shows the top points, or one member with the latest changes.', 'bolt.points [@user]', 'bolt.points @user', 'None']
+  ] },
+  { id: 'mail', t: 'Mod mail', b: ['Set up on the dashboard only. BOLT keeps a panel as the last message in the mod mail channel. Staff press Send new mail, choose up to 25 members, write the message, and BOLT sends it by DM. You see how many were delivered and how many failed.'] },
   { id: 'other', t: 'Other', c: [['/ping', 'Shows if BOLT is online and its latency.', '/ping', '/ping', 'None']] },
   { id: 'dashboard', t: 'Dashboard', b: ['Log in with Discord, choose a server, then change the Intro and Ticket settings. Changes reach BOLT in about 20 seconds. Only the owner, admins and members with Manage Server can use it.'] }
 ];
 
 /* ---------- Pages (each returns an element) ---------- */
 function pageHome() {
-  const features = [['Tickets', 'Members open a private ticket. Staff reply in one place.'], ['Intro channel', 'New members follow a how-to message that stays at the bottom.'], ['AFK', 'Mark yourself away. Mentions get your reason and how long.'], ['Moderation', 'Kick, ban, mute and purge with clear formats.'], ['Web dashboard', 'Change intro and ticket settings from your browser.']];
+  const features = [['Tickets', 'Members open a private ticket. Staff reply in one place.'], ['Intro channel', 'New members follow a how-to message that stays at the bottom.'], ['AFK', 'Mark yourself away. Mentions get your reason and how long.'], ['Moderation', 'Kick, ban, mute and purge with clear formats.'], ['Mod points', 'Voters add points. Kick and ban happen at your limits.'], ['Mod mail', 'Send private messages to members from a staff panel.'], ['Web dashboard', 'Change settings from your browser.']];
   return h('div', { class: 'page' },
     h('section', { class: 'hero' }, h('h1', {}, 'A quiet bot for Discord servers.'),
       h('p', { class: 'lead' }, 'BOLT handles tickets, intro channels, AFK and moderation from Discord and the web.'),
@@ -288,16 +304,16 @@ async function pageDash(gid, sec) {
 
 function dashServer(g, sec, addBtn) {
   const sw = h('select', { 'aria-label': 'Server', onchange: (e) => (location.hash = '#/dashboard/' + e.target.value + '/' + sec) }, S.guilds.map((x) => h('option', { value: x.guild_id, selected: x.guild_id === g.guild_id }, x.name)));
-  const nav = [['overview', 'Overview'], ['intro', 'Intro'], ['tickets', 'Tickets']].map((n) => h('a', { href: '#/dashboard/' + g.guild_id + '/' + n[0], class: sec === n[0] ? 'on' : '' }, n[1]));
+  const nav = [['overview', 'Overview'], ['intro', 'Intro'], ['tickets', 'Tickets'], ['points', 'Mod points'], ['mail', 'Mod mail']].map((n) => h('a', { href: '#/dashboard/' + g.guild_id + '/' + n[0], class: sec === n[0] ? 'on' : '' }, n[1]));
   const side = h('aside', { class: 'side' }, sw, h('nav', { class: 'dnav', 'aria-label': 'Server sections' }, nav), h('p', { style: 'margin:12px 0 0' }, addBtn('btn sm')));
-  const body = sec === 'intro' ? formIntro(g) : sec === 'tickets' ? formTickets(g) : overview(g);
+  const body = sec === 'intro' ? formIntro(g) : sec === 'tickets' ? formTickets(g) : sec === 'points' ? formPoints(g) : sec === 'mail' ? formMail(g) : overview(g);
   return h('div', { class: 'page' }, h('div', { class: 'dash' }, side, h('div', { class: 'cont' }, body)));
 }
 function overview(g) {
   const stat = (v, l) => h('div', { class: 'card stat' }, h('strong', {}, v), h('span', {}, l));
   const quick = (t, d, s) => h('div', { class: 'card' }, h('h3', {}, t), h('p', {}, d), h('a', { class: 'btn sm', style: 'margin-top:10px', href: '#/dashboard/' + g.guild_id + '/' + s }, 'Open ' + t));
   return h('div', {}, h('h1', {}, g.name), h('div', { class: 'stats' }, stat(String(g.channels.length), 'Channels'), stat(String(g.roles.length), 'Roles'), stat(ago(g.updated_at), 'Server data synced')),
-    h('div', { class: 'grid', style: 'margin-top:12px' }, quick('Intro', 'Set the intro channel and template.', 'intro'), quick('Tickets', 'Set the ticket category, panel and staff roles.', 'tickets')),
+    h('div', { class: 'grid', style: 'margin-top:12px' }, quick('Intro', 'Set the intro channel and template.', 'intro'), quick('Tickets', 'Set the panel, staff roles, logs and transcripts.', 'tickets'), quick('Mod points', 'Choose voters and the kick and ban limits.', 'points'), quick('Mod mail', 'Set up the panel that sends private mail.', 'mail')),
     h('p', { class: 'sm muted', style: 'margin-top:14px' }, 'Changes reach BOLT in about 20 seconds. Channel and role lists update every 5 minutes.'));
 }
 function chSelect(g, type, value, onpick, first) {
@@ -334,12 +350,60 @@ function formTickets(g) {
     });
     return chip;
   });
-  return h('div', {}, h('h1', {}, 'Tickets'), h('p', { class: 'muted' }, 'Choose where tickets live and who can see them.'),
-    field('Category for new tickets', chSelect(g, 'category', d.categoryId, (v) => (d.categoryId = v), 'Choose a category')),
+  return h('div', {}, h('h1', {}, 'Tickets'), h('p', { class: 'muted' }, 'Tickets open as private threads in the panel channel. A transcript is saved when a ticket closes.'),
     field('Panel channel', chSelect(g, 'text', d.panelChannelId, (v) => (d.panelChannelId = v), 'Choose a channel')),
     field('Logs channel (optional)', chSelect(g, 'text', d.logChannelId, (v) => (d.logChannelId = v), 'No logs')),
+    field('Transcripts channel (optional)', chSelect(g, 'text', d.transcriptChannelId, (v) => (d.transcriptChannelId = v), 'BOLT creates one when needed')),
     h('div', { class: 'field' }, h('span', {}, 'Staff roles (up to 10)'), h('div', { class: 'chips' }, chips)),
     h('p', { class: 'note' }, 'After saving, run /ticket setup in Discord and press Create panel to post the ticket button.'), saveBar());
+}
+
+function roleChips(g, list, max) {
+  const color = (c) => (/^#[0-9a-f]{6}$/i.test(c) && c !== '#000000' ? c : 'var(--muted)');
+  return g.roles.slice().sort((a, b) => b.position - a.position).map((r) => {
+    const chip = h('button', { class: 'chip', type: 'button', 'aria-pressed': String(list.includes(r.id)) }, h('span', { class: 'dot', style: 'background:' + color(r.color) }), r.name);
+    chip.addEventListener('click', () => {
+      const i = list.indexOf(r.id);
+      if (i > -1) list.splice(i, 1);
+      else if (list.length >= max) return toast('You can choose up to ' + max + ' roles.');
+      else list.push(r.id);
+      chip.setAttribute('aria-pressed', String(list.includes(r.id)));
+      dirtyCheck();
+    });
+    return chip;
+  });
+}
+function numField(label, value, onset) {
+  const input = h('input', { type: 'number', min: '0', max: '10000', value: String(value), oninput: (e) => { onset(parseInt(e.target.value, 10) || 0); dirtyCheck(); } });
+  input.style.cssText = 'width:100%;background:var(--s1);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit;color:inherit';
+  return field(label, input);
+}
+function formPoints(g) {
+  const d = S.draft.modpoints;
+  const lists = h('div', {}, h('p', { class: 'sm muted' }, 'Loading points…'));
+  Data.points(g.guild_id).then((r) => {
+    lists.replaceChildren(
+      h('h2', {}, 'Top points'),
+      r.top.length ? h('div', { class: 'grid' }, r.top.map((t, i) => h('div', { class: 'card' }, h('h3', {}, (i + 1) + '. ' + (t.name || t.user_id)), h('p', {}, t.points + ' points')))) : h('div', { class: 'empty' }, 'Nobody has points yet.'),
+      h('h2', {}, 'Latest changes'),
+      r.log.length ? h('div', {}, r.log.map((l) => h('p', { class: 'sm' }, (l.delta > 0 ? '+' : '') + l.delta + ' for ' + (l.user_name || '?') + ' by ' + (l.voter_name || '?') + ' (total ' + l.total + '): ' + (l.reason || 'No reason')))) : h('div', { class: 'empty' }, 'No changes yet.'));
+  }).catch((e) => lists.replaceChildren(h('p', { class: 'err' }, 'Could not load points: ' + e.message)));
+  return h('div', {}, h('h1', {}, 'Mod points'),
+    h('p', { class: 'muted' }, 'Voters give or remove points with bolt.point @user +3 reason. At the limits below, BOLT kicks or bans the member automatically and sends them the reason by DM.'),
+    h('div', { class: 'field' }, h('span', {}, 'Voter roles (who can use bolt.point, up to 10)'), h('div', { class: 'chips' }, roleChips(g, d.voterRoleIds, 10))),
+    numField('Kick at this many points (0 = off)', d.kickAt, (v) => (d.kickAt = v)),
+    numField('Ban at this many points (0 = off)', d.banAt, (v) => (d.banAt = v)),
+    saveBar(), lists);
+}
+function formMail(g) {
+  const d = S.draft.modmail;
+  return h('div', {}, h('h1', {}, 'Mod mail'),
+    h('p', { class: 'muted' }, 'BOLT keeps a panel as the last message in the mod mail channel. Staff press Send new mail, choose members, write a message, and BOLT sends it by DM and reports how many were delivered.'),
+    h('label', { class: 'tg' }, h('input', { type: 'checkbox', checked: d.enabled, onchange: (e) => { d.enabled = e.target.checked; dirtyCheck(); } }), 'Turn on mod mail'),
+    field('Mod mail channel', chSelect(g, 'text', d.channelId, (v) => (d.channelId = v), 'Choose a channel')),
+    h('label', { class: 'tg', style: 'margin-top:8px' }, h('input', { type: 'checkbox', checked: d.create, onchange: (e) => { d.create = e.target.checked; dirtyCheck(); } }), 'Create a channel for me (used when no channel is chosen)'),
+    h('div', { class: 'field' }, h('span', {}, 'Staff roles (who can send mail, up to 10)'), h('div', { class: 'chips' }, roleChips(g, d.staffRoleIds, 10))),
+    h('p', { class: 'note' }, 'If BOLT creates the channel, reload this page after a minute to see it here.'), saveBar());
 }
 function saveBar() {
   return h('div', {}, h('p', { class: 'err', id: 'ferr', hidden: true, role: 'alert' }),
@@ -352,7 +416,9 @@ async function doSave() {
   const d = S.draft; formError('');
   if (d.intro.enabled && !d.intro.channelId) return formError('Choose a channel for the intro system, or turn it off.');
   if (d.intro.enabled && !d.intro.template.trim()) return formError('Write a template for the intro message.');
-  if (S.sec === 'tickets' && (!d.tickets.categoryId || !d.tickets.panelChannelId || !d.tickets.staffRoleIds.length)) return formError('Choose a ticket category, a panel channel and at least one staff role.');
+  if (S.sec === 'tickets' && (!d.tickets.panelChannelId || !d.tickets.staffRoleIds.length)) return formError('Choose a panel channel and at least one staff role.');
+  if (S.sec === 'points' && (d.modpoints.kickAt < 0 || d.modpoints.banAt < 0)) return formError('Limits cannot be negative.');
+  if (S.sec === 'mail' && d.modmail.enabled && !d.modmail.channelId && !d.modmail.create) return formError('Choose a mod mail channel, or tick "Create a channel for me".');
   const btn = $('save'); btn.disabled = true; btn.textContent = 'Saving…';
   try { await Data.save(S.g.guild_id, d); S.orig = clone(d); dirtyCheck(); toast('Saved. BOLT applies changes within about 20 seconds.'); }
   catch (e) { formError('Could not save: ' + e.message); }
