@@ -97,7 +97,7 @@ footer{border-top:1px solid var(--line)}.fi{width:min(1080px,calc(100% - 32px));
 <header class="wrap">
 <nav class="island" id="island" aria-label="Main">
 <div class="top">
-<a href="#/" class="logo" aria-label="BOLT home"><svg class="brand" viewBox="0 0 519 258" aria-hidden="true"><use href="#bolt-logo"/></svg></a>
+<a href="#/" class="logo" aria-label="BOLT home"><svg class="brand" viewBox="0 0 519 258" aria-hidden="true"><use href="#bolt-logo"/></svg><span>BOLT</span></a>
 <div class="links" id="links"><i id="hl" aria-hidden="true"></i><a data-n="home" href="#/">Home</a><a data-n="docs" href="#/docs">Docs</a><a data-n="dashboard" href="#/dashboard">Dashboard</a></div>
 <div class="acts"><button id="theme" class="icon" type="button"></button><span id="auth"></span><button id="mbtn" class="icon mbtn" type="button" aria-expanded="false" aria-label="Open menu">☰</button></div>
 </div>
@@ -136,6 +136,14 @@ const Data = {
     this._g = data; this._t = Date.now();
     return data;
   },
+  async postLeaderboardNow(id) {
+    const { data: cur, error } = await sb.from('guild_settings').select('settings').eq('guild_id', id).maybeSingle();
+    if (error) throw error;
+    const base = (cur && cur.settings) || {};
+    const settings = { ...base, leaderboard: { ...(base.leaderboard || {}), postNonce: Date.now() } };
+    const { error: e2 } = await sb.from('guild_settings').upsert({ guild_id: id, settings }, { onConflict: 'guild_id' });
+    if (e2) throw e2;
+  },
   async points(id) {
     const top = await sb.from('mod_points').select('user_id,name,avatar,points').eq('guild_id', id).gt('points', 0).order('points', { ascending: false }).limit(10);
     const log = await sb.from('mod_point_log').select('user_name,user_avatar,voter_name,delta,total,reason,created_at').eq('guild_id', id).order('created_at', { ascending: false }).limit(8);
@@ -146,11 +154,15 @@ const Data = {
   async load(id) {
     const { data, error } = await sb.from('guild_settings').select('settings').eq('guild_id', id).maybeSingle();
     if (error) throw error;
-    const s = (data && data.settings) || {}, i = s.intro || {}, t = s.tickets || {}, mp = s.modpoints || {}, mm = s.modmail || {}, lb = s.leaderboard || {};
+    const s = (data && data.settings) || {}, i = s.intro || {}, t = s.tickets || {}, mp = s.modpoints || {}, mm = s.modmail || {}, lb = s.leaderboard || {}, ml = s.modlog || {}, am = s.automod || {}, wc = s.welcome || {}, rp = s.rolepanel || {};
     return {
       intro: { enabled: !!i.channelId, channelId: i.channelId || '', template: i.template || '' },
       tickets: { panelChannelId: t.panelChannelId || '', logChannelId: t.logChannelId || '', transcriptChannelId: t.transcriptChannelId || '', staffRoleIds: Array.isArray(t.staffRoleIds) ? t.staffRoleIds : [] },
       modpoints: { voterRoleIds: Array.isArray(mp.voterRoleIds) ? mp.voterRoleIds : [], kickAt: Number(mp.kickAt) || 0, banAt: Number(mp.banAt) || 0 },
+      modlog: { channelId: ml.channelId || '' },
+      automod: { enabled: !!am.enabled, invites: !!am.invites, mentionLimit: Number(am.mentionLimit) || 0, spamLimit: Number(am.spamLimit) || 0, spamSeconds: Number(am.spamSeconds) || 8, words: Array.isArray(am.words) ? am.words.join(', ') : '', muteMinutes: Number(am.muteMinutes) || 0, exemptRoleIds: Array.isArray(am.exemptRoleIds) ? am.exemptRoleIds : [] },
+      welcome: { channelId: wc.channelId || '', message: wc.message || '', goodbye: wc.goodbye || '', autoRoleId: wc.autoRoleId || '' },
+      rolepanel: { enabled: !!rp.channelId, channelId: rp.channelId || '', title: rp.title || '', text: rp.text || '', roleIds: Array.isArray(rp.roleIds) ? rp.roleIds : [] },
       leaderboard: { enabled: !!lb.channelId, channelId: lb.channelId || '', day: Number.isInteger(lb.day) ? lb.day : 0, hour: Number.isInteger(lb.hour) ? lb.hour : 18 },
       modmail: { enabled: !!mm.channelId, channelId: mm.channelId || '', create: false, staffRoleIds: Array.isArray(mm.staffRoleIds) ? mm.staffRoleIds : [] }
     };
@@ -164,6 +176,10 @@ const Data = {
       intro: { channelId: on ? d.intro.channelId : null, template: on ? d.intro.template.trim() : null },
       tickets: { categoryId: null, panelChannelId: d.tickets.panelChannelId || null, logChannelId: d.tickets.logChannelId || null, transcriptChannelId: d.tickets.transcriptChannelId || null, staffRoleIds: d.tickets.staffRoleIds },
       modpoints: { voterRoleIds: d.modpoints.voterRoleIds, kickAt: d.modpoints.kickAt || 0, banAt: d.modpoints.banAt || 0 },
+      modlog: { channelId: d.modlog.channelId || null },
+      automod: { enabled: d.automod.enabled, invites: d.automod.invites, mentionLimit: d.automod.mentionLimit || 0, spamLimit: d.automod.spamLimit || 0, spamSeconds: d.automod.spamSeconds || 8, words: d.automod.words.split(',').map((w) => w.trim().toLowerCase()).filter(Boolean).slice(0, 50), muteMinutes: d.automod.muteMinutes || 0, exemptRoleIds: d.automod.exemptRoleIds },
+      welcome: { channelId: d.welcome.channelId || null, message: d.welcome.message.trim(), goodbye: d.welcome.goodbye.trim(), autoRoleId: d.welcome.autoRoleId || null },
+      rolepanel: { channelId: d.rolepanel.enabled && d.rolepanel.channelId ? d.rolepanel.channelId : null, title: d.rolepanel.title.trim(), text: d.rolepanel.text.trim(), roleIds: d.rolepanel.roleIds },
       leaderboard: { channelId: d.leaderboard.enabled && d.leaderboard.channelId ? d.leaderboard.channelId : null, day: d.leaderboard.day, hour: d.leaderboard.hour, tzOffset: -new Date().getTimezoneOffset() },
       modmail: { channelId: d.modmail.enabled && d.modmail.channelId ? d.modmail.channelId : null, createChannel: !!(d.modmail.enabled && !d.modmail.channelId && d.modmail.create), staffRoleIds: d.modmail.staffRoleIds }
     };
@@ -253,13 +269,16 @@ const DOCS = [
     ['/leaderboard', 'Shows the mod points leaderboard with profile pictures. Anyone can use it. bolt.leaderboard works too. A weekly post can be set up on the dashboard.', '/leaderboard', '/leaderboard', 'None']
   ] },
   { id: 'mail', t: 'Mod mail', b: ['Set up on the dashboard only. BOLT keeps a panel as the last message in the mod mail channel. Staff press Send new mail, choose up to 25 members, write the message, and BOLT sends it by DM. You see how many were delivered and how many failed.'] },
+  { id: 'automod', t: 'Auto-mod', b: ['Set up on the dashboard. BOLT removes invite links, spam, mass mentions and blocked words, posts a short notice, can mute the person, and writes it to the mod log. Members with Manage Messages and exempt roles are never checked.'] },
+  { id: 'welcome', t: 'Welcome and roles', b: ['Set up on the dashboard. Welcome and goodbye messages can use {user}, {name}, {server} and {count}. New members can get a role automatically. The role menu is a card with buttons, and members press a button to get or remove a role.'] },
+  { id: 'modlog', t: 'Mod log', b: ['Set up on the dashboard. BOLT writes a card for every kick, ban, mute, unmute, purge, point change and auto-mod action.'] },
   { id: 'other', t: 'Other', c: [['/ping', 'Shows if BOLT is online and its latency.', '/ping', '/ping', 'None']] },
   { id: 'dashboard', t: 'Dashboard', b: ['Log in with Discord, choose a server, then change the Intro and Ticket settings. Changes reach BOLT in about 20 seconds. Only the owner, admins and members with Manage Server can use it.'] }
 ];
 
 /* ---------- Pages (each returns an element) ---------- */
 function pageHome() {
-  const features = [['Tickets', 'Members open a private ticket. Staff reply in one place.'], ['Intro channel', 'New members follow a how-to message that stays at the bottom.'], ['AFK', 'Mark yourself away. Mentions get your reason and how long.'], ['Moderation', 'Kick, ban, mute and purge with clear formats.'], ['Mod points', 'Voters add points. Kick and ban happen at your limits.'], ['Mod mail', 'Send private messages to members from a staff panel.'], ['Web dashboard', 'Change settings from your browser.']];
+  const features = [['Tickets', 'Members open a private ticket. Staff reply in one place.'], ['Intro channel', 'New members follow a how-to message that stays at the bottom.'], ['AFK', 'Mark yourself away. Mentions get your reason and how long.'], ['Moderation', 'Kick, ban, mute and purge with clear formats.'], ['Mod points', 'Voters add points. Kick and ban happen at your limits.'], ['Mod mail', 'Send private messages to members from a staff panel.'], ['Auto-mod', 'Removes invites, spam and mass mentions.'], ['Welcome and roles', 'Welcome messages, auto roles and a role menu.'], ['Web dashboard', 'Change settings from your browser.']];
   return h('div', { class: 'page' },
     h('section', { class: 'hero' }, logoSvg('hero-logo'), h('h1', {}, 'A quiet bot for Discord servers.'),
       h('p', { class: 'lead' }, 'BOLT handles tickets, intro channels, AFK and moderation from Discord and the web.'),
@@ -316,16 +335,16 @@ async function pageDash(gid, sec) {
 
 function dashServer(g, sec, addBtn) {
   const sw = h('select', { 'aria-label': 'Server', onchange: (e) => (location.hash = '#/dashboard/' + e.target.value + '/' + sec) }, S.guilds.map((x) => h('option', { value: x.guild_id, selected: x.guild_id === g.guild_id }, x.name)));
-  const nav = [['overview', 'Overview'], ['intro', 'Intro'], ['tickets', 'Tickets'], ['points', 'Mod points'], ['leaderboard', 'Leaderboard'], ['mail', 'Mod mail']].map((n) => h('a', { href: '#/dashboard/' + g.guild_id + '/' + n[0], class: sec === n[0] ? 'on' : '' }, n[1]));
+  const nav = [['overview', 'Overview'], ['intro', 'Intro'], ['tickets', 'Tickets'], ['points', 'Mod points'], ['leaderboard', 'Leaderboard'], ['mail', 'Mod mail'], ['automod', 'Auto-mod'], ['welcome', 'Welcome'], ['roles', 'Role menu'], ['modlog', 'Mod log']].map((n) => h('a', { href: '#/dashboard/' + g.guild_id + '/' + n[0], class: sec === n[0] ? 'on' : '' }, n[1]));
   const side = h('aside', { class: 'side' }, sw, h('nav', { class: 'dnav', 'aria-label': 'Server sections' }, nav), h('p', { style: 'margin:12px 0 0' }, addBtn('btn sm')));
-  const body = sec === 'intro' ? formIntro(g) : sec === 'tickets' ? formTickets(g) : sec === 'points' ? formPoints(g) : sec === 'leaderboard' ? formLeaderboard(g) : sec === 'mail' ? formMail(g) : overview(g);
+  const body = sec === 'intro' ? formIntro(g) : sec === 'tickets' ? formTickets(g) : sec === 'points' ? formPoints(g) : sec === 'leaderboard' ? formLeaderboard(g) : sec === 'automod' ? formAutomod(g) : sec === 'welcome' ? formWelcome(g) : sec === 'roles' ? formRoles(g) : sec === 'modlog' ? formModlog(g) : sec === 'mail' ? formMail(g) : overview(g);
   return h('div', { class: 'page' }, h('div', { class: 'dash' }, side, h('div', { class: 'cont' }, body)));
 }
 function overview(g) {
   const stat = (v, l) => h('div', { class: 'card stat' }, h('strong', {}, v), h('span', {}, l));
   const quick = (t, d, s) => h('div', { class: 'card' }, h('h3', {}, t), h('p', {}, d), h('a', { class: 'btn sm', style: 'margin-top:10px', href: '#/dashboard/' + g.guild_id + '/' + s }, 'Open ' + t));
   return h('div', {}, h('h1', {}, g.name), h('div', { class: 'stats' }, stat(String(g.channels.length), 'Channels'), stat(String(g.roles.length), 'Roles'), stat(ago(g.updated_at), 'Server data synced')),
-    h('div', { class: 'grid', style: 'margin-top:12px' }, quick('Intro', 'Set the intro channel and template.', 'intro'), quick('Tickets', 'Set the panel, staff roles, logs and transcripts.', 'tickets'), quick('Mod points', 'Choose voters and the kick and ban limits.', 'points'), quick('Leaderboard', 'Post the mod points leaderboard every week.', 'leaderboard'), quick('Mod mail', 'Set up the panel that sends private mail.', 'mail')),
+    h('div', { class: 'grid', style: 'margin-top:12px' }, quick('Intro', 'Set the intro channel and template.', 'intro'), quick('Tickets', 'Set the panel, staff roles, logs and transcripts.', 'tickets'), quick('Mod points', 'Choose voters and the kick and ban limits.', 'points'), quick('Leaderboard', 'Post the mod points leaderboard every week.', 'leaderboard'), quick('Mod mail', 'Set up the panel that sends private mail.', 'mail'), quick('Auto-mod', 'Remove invites, spam and mass mentions.', 'automod'), quick('Welcome', 'Welcome messages and an automatic role.', 'welcome'), quick('Role menu', 'Let members pick their own roles.', 'roles'), quick('Mod log', 'Record every moderation action.', 'modlog')),
     h('p', { class: 'sm muted', style: 'margin-top:14px' }, 'Changes reach BOLT in about 20 seconds. Channel and role lists update every 5 minutes.'));
 }
 function chSelect(g, type, value, onpick, first) {
@@ -407,6 +426,65 @@ function formPoints(g) {
     numField('Ban at this many points (0 = off)', d.banAt, (v) => (d.banAt = v)),
     saveBar(), lists);
 }
+const INPUT_STYLE = 'width:100%;background:var(--s1);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit;color:inherit';
+const toggleRow = (label, obj, key) => h('label', { class: 'tg', style: 'margin-top:8px' }, h('input', { type: 'checkbox', checked: obj[key], onchange: (e) => { obj[key] = e.target.checked; dirtyCheck(); } }), label);
+function textArea(label, obj, key, max, ph) {
+  const ta = h('textarea', { maxlength: String(max), placeholder: ph || '', oninput: (e) => { obj[key] = e.target.value; dirtyCheck(); } });
+  ta.value = obj[key];
+  return field(label, ta);
+}
+function textInput(label, obj, key, max, ph) {
+  const input = h('input', { type: 'text', maxlength: String(max), placeholder: ph || '', oninput: (e) => { obj[key] = e.target.value; dirtyCheck(); } });
+  input.value = obj[key]; input.style.cssText = INPUT_STYLE;
+  return field(label, input);
+}
+function roleSelect(g, value, onpick, first) {
+  return h('select', { onchange: (e) => { onpick(e.target.value); dirtyCheck(); } }, h('option', { value: '' }, first),
+    g.roles.slice().sort((a, b) => b.position - a.position).map((r) => h('option', { value: r.id, selected: r.id === value }, r.name)));
+}
+const roleBlock = (g, label, list, max) => h('div', { class: 'field' }, h('span', {}, label), h('div', { class: 'chips' }, roleChips(g, list, max)));
+function formModlog(g) {
+  const d = S.draft.modlog;
+  return h('div', {}, h('h1', {}, 'Mod log'), h('p', { class: 'muted' }, 'BOLT writes a card here for every kick, ban, mute, unmute, purge, point change and auto-mod action.'),
+    field('Mod log channel', chSelect(g, 'text', d.channelId, (v) => (d.channelId = v), 'No mod log')), saveBar());
+}
+function formAutomod(g) {
+  const d = S.draft.automod;
+  return h('div', {}, h('h1', {}, 'Auto-mod'),
+    h('p', { class: 'muted' }, 'BOLT removes messages that break these rules, posts a short notice and writes it to the mod log. Members with Manage Messages are never checked.'),
+    toggleRow('Turn on auto-mod', d, 'enabled'), toggleRow('Block invite links', d, 'invites'),
+    numField('Mass mentions: remove messages with this many mentions (0 = off)', d.mentionLimit, (v) => (d.mentionLimit = v)),
+    numField('Spam: remove when someone sends this many messages (0 = off)', d.spamLimit, (v) => (d.spamLimit = v)),
+    numField('Spam time window in seconds', d.spamSeconds, (v) => (d.spamSeconds = v)),
+    textArea('Blocked words (separate with commas)', d, 'words', 1000, 'word1, word2'),
+    numField('Mute offenders for this many minutes (0 = off)', d.muteMinutes, (v) => (d.muteMinutes = v)),
+    roleBlock(g, 'Roles that are never checked (up to 10)', d.exemptRoleIds, 10), saveBar());
+}
+function formWelcome(g) {
+  const d = S.draft.welcome;
+  return h('div', {}, h('h1', {}, 'Welcome'),
+    h('p', { class: 'muted' }, 'Use {user}, {name}, {server} and {count} in your messages. Leave a message empty to turn it off.'),
+    field('Channel', chSelect(g, 'text', d.channelId, (v) => (d.channelId = v), 'Choose a channel')),
+    textArea('Welcome message', d, 'message', 1000, 'Welcome {user} to {server}! You are member #{count}.'),
+    textArea('Goodbye message (optional)', d, 'goodbye', 1000, '{name} left the server.'),
+    field('Role for new members (optional)', roleSelect(g, d.autoRoleId, (v) => (d.autoRoleId = v), 'No automatic role')),
+    h('p', { class: 'note' }, "BOLT's role must be above the role it gives."), saveBar());
+}
+function formRoles(g) {
+  const d = S.draft.rolepanel;
+  return h('div', {}, h('h1', {}, 'Role menu'),
+    h('p', { class: 'muted' }, 'BOLT posts a card with one button per role. Members press a button to get or remove that role.'),
+    toggleRow('Turn on the role menu', d, 'enabled'),
+    field('Channel', chSelect(g, 'text', d.channelId, (v) => (d.channelId = v), 'Choose a channel')),
+    textInput('Title', d, 'title', 100, 'Choose your roles'),
+    textArea('Text', d, 'text', 500, 'Press a button to get or remove a role.'),
+    roleBlock(g, 'Roles in the menu (up to 10)', d.roleIds, 10),
+    h('p', { class: 'note' }, "BOLT's role must be above these roles. Saving posts a fresh menu."), saveBar());
+}
+async function postNow() {
+  if (!S.orig.leaderboard.enabled || !S.orig.leaderboard.channelId) return toast('Save a leaderboard channel first.');
+  try { await Data.postLeaderboardNow(S.g.guild_id); toast('BOLT will post the leaderboard within about 20 seconds.'); } catch (e) { toast('Could not send: ' + e.message); }
+}
 function formLeaderboard(g) {
   const d = S.draft.leaderboard;
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -420,7 +498,8 @@ function formLeaderboard(g) {
     h('label', { class: 'tg' }, h('input', { type: 'checkbox', checked: d.enabled, onchange: (e) => { d.enabled = e.target.checked; dirtyCheck(); } }), 'Post the leaderboard every week'),
     field('Channel', chSelect(g, 'text', d.channelId, (v) => (d.channelId = v), 'Choose a channel')),
     field('Day', daySel, 'lbday'), field('Time', hourSel, 'lbhour'),
-    h('p', { class: 'sm muted' }, 'Times use your browser time zone (' + tz + '). BOLT must be online at that hour.'), saveBar());
+    h('p', { class: 'sm muted' }, 'Times use your browser time zone (' + tz + '). BOLT must be online at that hour.'),
+    h('p', {}, h('button', { class: 'btn sm', type: 'button', onclick: postNow }, 'Post the leaderboard now')), saveBar());
 }
 function formMail(g) {
   const d = S.draft.modmail;
@@ -446,6 +525,8 @@ async function doSave() {
   if (S.sec === 'tickets' && (!d.tickets.panelChannelId || !d.tickets.staffRoleIds.length)) return formError('Choose a panel channel and at least one staff role.');
   if (S.sec === 'points' && (d.modpoints.kickAt < 0 || d.modpoints.banAt < 0)) return formError('Limits cannot be negative.');
   if (S.sec === 'leaderboard' && d.leaderboard.enabled && !d.leaderboard.channelId) return formError('Choose a channel for the weekly leaderboard.');
+  if (S.sec === 'welcome' && d.welcome.message.trim() && !d.welcome.channelId) return formError('Choose a channel for the welcome message.');
+  if (S.sec === 'roles' && d.rolepanel.enabled && (!d.rolepanel.channelId || !d.rolepanel.roleIds.length)) return formError('Choose a channel and at least one role for the role menu.');
   if (S.sec === 'mail' && d.modmail.enabled && !d.modmail.channelId && !d.modmail.create) return formError('Choose a mod mail channel, or tick "Create a channel for me".');
   const btn = $('save'); btn.disabled = true; btn.textContent = 'Saving…';
   try { await Data.save(S.g.guild_id, d); S.orig = clone(d); dirtyCheck(); toast('Saved. BOLT applies changes within about 20 seconds.'); }
